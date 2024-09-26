@@ -1,0 +1,253 @@
+<html><head><base href="https://api.gemini.com/v1/"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sommelier Virtual Avanzado - Descubre tu Vino en Detalle</title><style>
+    body {
+        font-family: 'Playfair Display', serif;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        color: #343a40;
+        line-height: 1.6;
+        padding: 20px;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    h1 {
+        color: #8e44ad;
+        text-align: center;
+        margin-bottom: 30px;
+        font-size: 2.5em;
+    }
+    #wine-form {
+        background-color: #fff;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 6px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 30px;
+    }
+    label {
+        display: block;
+        margin-bottom: 10px;
+        color: #6c757d;
+        font-size: 1.1em;
+    }
+    input[type="text"] {
+        width: 100%;
+        padding: 12px;
+        margin-bottom: 20px;
+        border: 2px solid #ced4da;
+        border-radius: 6px;
+        font-size: 1em;
+        transition: border-color 0.3s ease;
+    }
+    input[type="text"]:focus {
+        border-color: #8e44ad;
+        outline: none;
+    }
+    button {
+        background-color: #8e44ad;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 1.1em;
+        font-weight: bold;
+    }
+    button:hover {
+        background-color: #6c3483;
+        transform: translateY(-2px);
+    }
+    button:disabled {
+        background-color: #d1d1d1;
+        cursor: not-allowed;
+        transform: none;
+    }
+    #resultadoConsulta {
+        background-color: #fff;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 6px 10px rgba(0, 0, 0, 0.1);
+    }
+    .loading {
+        text-align: center;
+        margin-top: 20px;
+    }
+    .loading::after {
+        content: '';
+        display: inline-block;
+        width: 30px;
+        height: 30px;
+        border: 3px solid #8e44ad;
+        border-radius: 50%;
+        border-top-color: transparent;
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        to {transform: rotate(360deg);}
+    }
+    .wine-info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-top: 30px;
+    }
+    .wine-info-item {
+        background-color: #f8f9fa;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+    }
+    .wine-info-item:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+    }
+    .wine-info-item h3 {
+        color: #8e44ad;
+        margin-top: 0;
+        font-size: 1.3em;
+        border-bottom: 2px solid #e9ecef;
+        padding-bottom: 10px;
+        margin-bottom: 15px;
+    }
+    .wine-info-item p {
+        margin-bottom: 10px;
+    }
+    .wine-info-subitem {
+        margin-left: 15px;
+        border-left: 2px solid #ced4da;
+        padding-left: 10px;
+    }
+</style></head><body>
+    <h1>🍷 Sommelier Virtual Avanzado</h1>
+    <div id="wine-form">
+        <label for="consulta">Ingrese el nombre del vino o descripción:</label>
+        <input type="text" id="consulta" placeholder="Ej: Château Margaux 2015">
+        <button id="botonConsulta">Analizar vino en detalle</button>
+    </div>
+    <div id="resultadoConsulta"></div>
+
+    <script type="importmap">
+    {
+      "imports": {
+        "@google/generative-ai": "https://esm.run/@google/generative-ai"
+      }
+    }
+    </script>
+
+    <script type="module">
+    import { GoogleGenerativeAI } from "@google/generative-ai"
+    
+    const clave = "TU_CLAVE_API_AQUI"  // Reemplaza con tu clave real de Gemini API
+    const genAI = new GoogleGenerativeAI(clave)
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" })
+
+    const botonConsulta = document.querySelector("#botonConsulta");
+    const resultadoConsulta = document.querySelector("#resultadoConsulta");
+
+    function desactivarBoton() {
+        botonConsulta.disabled = true;
+        botonConsulta.textContent = "Analizando...";
+        resultadoConsulta.innerHTML = '<div class="loading"></div>';
+    }
+
+    function activarBoton() {
+        botonConsulta.disabled = false;
+        botonConsulta.textContent = "Analizar vino en detalle";
+    }
+
+    function formatearRespuesta(respuestaTexto) {
+        try {
+            // Intenta encontrar el JSON válido en la respuesta
+            const jsonMatch = respuestaTexto.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                const jsonString = jsonMatch[0];
+                // Limpia el JSON de posibles caracteres no válidos y escapes incorrectos
+                const cleanJsonString = jsonString.replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
+                                                  .replace(/\\"/g, '"')
+                                                  .replace(/\\n/g, '\n')
+                                                  .replace(/\\/g, '\\\\');
+                const datos = JSON.parse(cleanJsonString);
+                let html = '<div class="wine-info-grid">';
+
+                for (const [categoria, contenido] of Object.entries(datos)) {
+                    html += `<div class="wine-info-item">
+                                <h3>${categoria}</h3>`;
+
+                    if (typeof contenido === 'object' && contenido !== null) {
+                        for (const [subcategoria, descripcion] of Object.entries(contenido)) {
+                            html += `<div class="wine-info-subitem"><strong>${subcategoria}:</strong> ${descripcion}</div>`;
+                        }
+                    } else {
+                        html += `<p>${contenido}</p>`;
+                    }
+
+                    html += `</div>`;
+                }
+
+                html += '</div>';
+                return html;
+            } else {
+                // Si no se encuentra JSON, muestra el texto plano
+                return `<p>${respuestaTexto}</p>`;
+            }
+        } catch (error) {
+            console.error("Error al procesar la respuesta:", error);
+            return `<p style="color: #dc3545; text-align: center;">Lo siento, ha ocurrido un problema al procesar la respuesta. Por favor, inténtalo de nuevo.</p>
+                    <p style="text-align: center;">Respuesta recibida: ${respuestaTexto}</p>
+                    <p style="text-align: center;">Error: ${error.message}</p>`;
+        }
+    }
+
+    botonConsulta.addEventListener("click", async () => {
+        desactivarBoton();
+        const consulta = document.querySelector("#consulta").value;
+        
+        if (!consulta.trim()) {
+            resultadoConsulta.innerHTML = '<p style="color: #dc3545; text-align: center;">Por favor, ingrese un nombre de vino o descripción.</p>';
+            activarBoton();
+            return;
+        }
+
+        const prompt = `Actúa como un sommelier experto y proporciona información detallada sobre el vino "${consulta}". Presenta tu respuesta en formato JSON, siguiendo esta estructura:
+
+{
+  "Origen": "Región, país, denominación de origen",
+  "Elaboración": "Proceso de elaboración: maceración, fermentación, crianza, etc.",
+  "Uva(s)": "Variedad o variedades, porcentajes",
+  "Graduación alcohólica": "Porcentaje de alcohol por volumen",
+  "Notas de cata": {
+    "Vista": "Color, intensidad, brillo",
+    "Nariz": "Aromas primarios, secundarios, terciarios, intensidad, complejidad",
+    "Boca": "Ataque, acidez, taninos, cuerpo, final, sabores"
+  },
+  "Maridaje": "Platos o tipos de cocina sugeridos",
+  "Servicio": {
+    "Temperatura": "Temperatura ideal",
+    "Decantación": "Si es necesario, tiempo",
+    "Copa": "Tipo de copa recomendada"
+  },
+  "Añada": "Características típicas de las añadas",
+  "Crianza": "Tipo de crianza y duración",
+  "Productor": "Bodega, filosofía, estilo",
+  "Precio": "Rango de precios orientativo",
+  "Puntuaciones": "Año, Parker, Peñín, Suckling"
+}
+
+No inventes los datos ni alucines, usa fuentes contrastadas.
+Asegúrate de que la respuesta sea un JSON válido, sin caracteres especiales o formateo adicional que pueda interferir con el parsing. Si no dispones de información para algún campo, usa "Información no disponible" como valor.`;
+
+        try {
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            const text = response.text();
+            
+            resultadoConsulta.innerHTML = formatearRespuesta(text);
+        } catch (error) {
+            resultadoConsulta.innerHTML = `<p style="color: #dc3545; text-align: center;">Lo siento, ha ocurrido un problema al procesar tu consulta. Por favor, inténtalo de nuevo más tarde.</p>
+                                           <p style="text-align: center;">Error: ${error.message}</p>`;
+            console.error('Error en la consulta:', error);
+        } finally {
+            activarBoton();
+        }
+    });
+    </script>
+</body></html>
